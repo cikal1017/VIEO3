@@ -75,8 +75,9 @@ export const generateImageFromImages = async (
 export const generateVideoFromImage = async (
   sourceImage: ImageFile,
   prompt: string,
-  onProgress: (message: string) => void
-): Promise<VideoResult> => {
+  onProgress: (message: string) => void,
+  numberOfVideos: number = 1
+): Promise<VideoResult[]> => {
     try {
         onProgress("Initiating video generation...");
         let operation = await ai.models.generateVideos({
@@ -87,7 +88,7 @@ export const generateVideoFromImage = async (
                 mimeType: sourceImage.mimeType,
             },
             config: {
-                numberOfVideos: 1
+                numberOfVideos: numberOfVideos
             }
         });
 
@@ -97,24 +98,38 @@ export const generateVideoFromImage = async (
             operation = await ai.operations.getVideosOperation({ operation: operation });
         }
 
-        onProgress("Finalizing video...");
-        const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
+        onProgress("Finalizing videos...");
+        const generatedVideos = operation.response?.generatedVideos;
         
-        if (!downloadLink) {
-            throw new Error("Video generation completed but no download link was provided.");
+        if (!generatedVideos || generatedVideos.length === 0) {
+            throw new Error("Video generation completed but no videos were provided.");
         }
 
-        onProgress("Downloading video...");
-        const response = await fetch(`${downloadLink}&key=${API_KEY}`);
-        
-        if (!response.ok) {
-            throw new Error(`Failed to download video: ${response.statusText}`);
+        onProgress(`Downloading ${generatedVideos.length} video(s)...`);
+
+        const videoPromises = generatedVideos.map(async (videoData) => {
+            const downloadLink = videoData.video?.uri;
+             if (!downloadLink) {
+                // This specific video failed, but others might succeed.
+                console.warn("A video was generated without a download link and will be skipped.");
+                return null;
+            }
+            const response = await fetch(`${downloadLink}&key=${API_KEY}`);
+            if (!response.ok) {
+                throw new Error(`Failed to download a video: ${response.statusText}`);
+            }
+            const videoBlob = await response.blob();
+            const videoUrl = URL.createObjectURL(videoBlob);
+            return { videoUrl };
+        });
+
+        const results = (await Promise.all(videoPromises)).filter((r): r is VideoResult => r !== null);
+
+        if(results.length === 0) {
+            throw new Error("All videos failed to download.");
         }
         
-        const videoBlob = await response.blob();
-        const videoUrl = URL.createObjectURL(videoBlob);
-
-        return { videoUrl };
+        return results;
 
     } catch (error) {
         console.error("Error generating video:", error);

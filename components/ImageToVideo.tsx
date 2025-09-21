@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from 'react';
 import { ImageUploader } from './ImageUploader';
 import { Spinner } from './Spinner';
@@ -12,9 +13,8 @@ const ImageToVideo: React.FC = () => {
   const [generatedResults, setGeneratedResults] = useState<VideoResult[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [isBulkMode, setIsBulkMode] = useState<boolean>(false);
-  const [numberOfVideos, setNumberOfVideos] = useState<number>(5);
   const [loadingProgress, setLoadingProgress] = useState<string>('');
+  const [numVideos, setNumVideos] = useState(1);
 
   const handleSubmit = useCallback(async () => {
     if (!sourceImage || !prompt) {
@@ -27,32 +27,17 @@ const ImageToVideo: React.FC = () => {
     setGeneratedResults([]);
     setLoadingProgress('');
 
-    const count = isBulkMode ? numberOfVideos : 1;
-
     try {
-      const results: VideoResult[] = [];
-      for (let i = 0; i < count; i++) {
-        const progressCallback = (message: string) => {
-           if (count > 1) {
-             setLoadingProgress(`Generating video ${i + 1} of ${count}: ${message}`);
-           } else {
-             setLoadingProgress(message);
-           }
-        };
-
-        const result = await generateVideoFromImage(sourceImage, prompt, progressCallback);
-        results.push(result);
-        setGeneratedResults([...results]);
-      }
+      const results = await generateVideoFromImage(sourceImage, prompt, setLoadingProgress, numVideos);
+      setGeneratedResults(results);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred.');
     } finally {
       setIsLoading(false);
       setLoadingProgress('');
     }
-  }, [sourceImage, prompt, isBulkMode, numberOfVideos]);
+  }, [sourceImage, prompt, numVideos]);
   
-  const generationCount = isBulkMode ? numberOfVideos : 1;
   const isButtonDisabled = isLoading || !sourceImage || !prompt;
 
   return (
@@ -63,45 +48,6 @@ const ImageToVideo: React.FC = () => {
           1. Provide Your Inputs
         </h2>
         <div className="space-y-6">
-          <div className="space-y-4 bg-gray-900/50 p-4 rounded-lg border border-gray-700">
-            <div className="flex items-center justify-between">
-                <label htmlFor="video-bulk-mode" className="font-medium text-gray-300 cursor-pointer select-none">
-                    Bulk Generate
-                </label>
-                <div className="relative inline-block w-10 mr-2 align-middle select-none">
-                    <input
-                        type="checkbox"
-                        name="video-bulk-mode"
-                        id="video-bulk-mode"
-                        checked={isBulkMode}
-                        onChange={(e) => setIsBulkMode(e.target.checked)}
-                        className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer transition-all duration-300"
-                    />
-                    <label htmlFor="video-bulk-mode" className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
-                </div>
-            </div>
-            {isBulkMode && (
-                <div className="pt-2 animate-fade-in-fast">
-                    <label htmlFor="num-videos" className="block text-sm font-medium text-gray-300 mb-2">
-                        Number of Videos: <span className="font-bold text-blue-400">{numberOfVideos}</span>
-                    </label>
-                    <input
-                        id="num-videos"
-                        type="range"
-                        min="5"
-                        max="20"
-                        value={numberOfVideos}
-                        onChange={(e) => setNumberOfVideos(parseInt(e.target.value, 10))}
-                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                    />
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
-                        <span>5</span>
-                        <span>20</span>
-                    </div>
-                </div>
-            )}
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
              <div className="md:col-span-2">
                 <ImageUploader
@@ -110,6 +56,20 @@ const ImageToVideo: React.FC = () => {
                     onImageSelect={setSourceImage}
                 />
              </div>
+          </div>
+           <div>
+              <label htmlFor="num-videos" className="block text-sm font-medium text-gray-300 mb-2">
+                  Number of Videos ({numVideos})
+              </label>
+              <input
+                  id="num-videos"
+                  type="range"
+                  min="1"
+                  max="10"
+                  value={numVideos}
+                  onChange={(e) => setNumVideos(Number(e.target.value))}
+                  className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-thumb-video"
+              />
           </div>
           <div>
             <label htmlFor="video-prompt" className="block text-sm font-medium text-gray-300 mb-2">
@@ -137,7 +97,7 @@ const ImageToVideo: React.FC = () => {
               </>
             ) : (
               <>
-                Generate {generationCount > 1 ? `${generationCount} Videos` : 'Video'}
+                Generate {numVideos > 1 ? `${numVideos} Videos` : 'Video'}
                 <VideoCameraIcon className="w-5 h-5" />
               </>
             )}
@@ -148,7 +108,7 @@ const ImageToVideo: React.FC = () => {
       {/* Output Section */}
       <div className="lg:w-1/2 bg-gray-800/50 p-6 rounded-2xl border border-gray-700 shadow-lg flex flex-col justify-start items-center min-h-[400px]">
         <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-lime-400 mb-6 self-start w-full">
-          2. Your Animated Video{generationCount > 1 || generatedResults.length > 1 ? 's' : ''}
+          2. Your Animated Video
         </h2>
         <div className="w-full flex-grow flex justify-center items-center">
           {isLoading ? (
@@ -166,7 +126,7 @@ const ImageToVideo: React.FC = () => {
           ) : (
             <div className="text-center text-gray-500">
                 <FilmIcon className="w-16 h-16 mx-auto mb-4 text-gray-600" />
-              <p className="text-lg">Your generated video(s) will appear here.</p>
+              <p className="text-lg">Your generated video will appear here.</p>
             </div>
           )}
         </div>
@@ -174,5 +134,29 @@ const ImageToVideo: React.FC = () => {
     </div>
   );
 };
+
+const style = document.createElement('style');
+style.innerHTML = `
+.slider-thumb-video::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: #2563eb; /* blue-600 */
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.slider-thumb-video::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: #2563eb; /* blue-600 */
+  cursor: pointer;
+  border-radius: 50%;
+  border: none;
+}
+`;
+document.head.appendChild(style);
+
 
 export default ImageToVideo;
