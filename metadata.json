@@ -1,0 +1,5 @@
+{
+  "name": "Gemini Image Fusion",
+  "description": "An advanced image editing tool that uses two reference images and a text prompt to generate a new, unique image. Upload a source image, a reference style/content image, provide instructions, and let the AI create a fused masterpiece.",
+  "requestFramePermissions": []
+}
